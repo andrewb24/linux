@@ -104,6 +104,12 @@ void ionic_bus_unmap_dbpage(struct ionic *ionic, void __iomem *page)
 	iounmap(page);
 }
 
+phys_addr_t ionic_bus_phys_dbpage(struct ionic *ionic, int page_num)
+{
+	return ionic->bars[IONIC_PCI_BAR_DBELL].bus_addr +
+		((phys_addr_t)page_num << PAGE_SHIFT);
+}
+
 static void ionic_vf_dealloc_locked(struct ionic *ionic)
 {
 	struct ionic_vf *v;
@@ -220,6 +226,9 @@ static int ionic_probe(struct pci_dev *pdev, const struct pci_device_id *ent)
 	ionic->dev = dev;
 	pci_set_drvdata(pdev, ionic);
 	mutex_init(&ionic->dev_cmd_lock);
+
+	ionic->is_mgmt_nic =
+		ent->device == PCI_DEVICE_ID_PENSANDO_IONIC_ETH_MGMT;
 
 	/* Query system for DMA addressing limitation for the device. */
 	err = dma_set_mask_and_coherent(dev, DMA_BIT_MASK(IONIC_ADDR_LEN));

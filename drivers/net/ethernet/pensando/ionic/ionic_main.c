@@ -238,7 +238,7 @@ static void ionic_adminq_cb(struct ionic_queue *q,
 	complete_all(&ctx->work);
 }
 
-static int ionic_adminq_post(struct ionic_lif *lif, struct ionic_admin_ctx *ctx)
+int ionic_adminq_post(struct ionic_lif *lif, struct ionic_admin_ctx *ctx)
 {
 	struct ionic_queue *adminq = &lif->adminqcq->q;
 	int err = 0;

@@ -48,6 +48,7 @@ int ionic_dev_setup(struct ionic *ionic)
 	unsigned int num_bars = ionic->num_bars;
 	struct ionic_dev *idev = &ionic->idev;
 	struct device *dev = ionic->dev;
+	int size;
 	u32 sig;
 
 	/* BAR0: dev_cmd and interrupts */
@@ -90,12 +91,40 @@ int ionic_dev_setup(struct ionic *ionic)
 	idev->db_pages = bar->vaddr;
 	idev->phy_db_pages = bar->bus_addr;
 
+	/* BAR2: optional controller memory mapping */
+	bar++;
+	mutex_init(&idev->cmb_inuse_lock);
+	if (num_bars < 3) {
+		idev->cmb_inuse = NULL;
+		idev->phy_cmb_pages = 0;
+		idev->cmb_npages = 0;
+		return 0;
+	}
+
+	idev->phy_cmb_pages = bar->bus_addr;
+	idev->cmb_npages = bar->len / PAGE_SIZE;
+	size = BITS_TO_LONGS(idev->cmb_npages) * sizeof(long);
+	idev->cmb_inuse = kzalloc(size, GFP_KERNEL);
+	if (!idev->cmb_inuse) {
+		idev->phy_cmb_pages = 0;
+		idev->cmb_npages = 0;
+	}
+
 	return 0;
 }
 
 void ionic_dev_teardown(struct ionic *ionic)
 {
+	struct ionic_dev *idev = &ionic->idev;
+
 	del_timer_sync(&ionic->watchdog_timer);
+
+	kfree(idev->cmb_inuse);
+	idev->cmb_inuse = NULL;
+	idev->phy_cmb_pages = 0;
+	idev->cmb_npages = 0;
+
+	mutex_destroy(&idev->cmb_inuse_lock);
 }
 
 /* Devcmd Interface */

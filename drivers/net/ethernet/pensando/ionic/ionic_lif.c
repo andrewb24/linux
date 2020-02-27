@@ -149,15 +149,14 @@ static int ionic_request_irq(struct ionic_lif *lif, struct ionic_qcq *qcq)
 				0, intr->name, &qcq->napi);
 }
 
-static int ionic_intr_alloc(struct ionic_lif *lif, struct ionic_intr_info *intr)
+int ionic_intr_alloc(struct ionic *ionic, struct ionic_intr_info *intr)
 {
-	struct ionic *ionic = lif->ionic;
 	int index;
 
 	index = find_first_zero_bit(ionic->intrs, ionic->nintrs);
 	if (index == ionic->nintrs) {
-		netdev_warn(lif->netdev, "%s: no intr, index=%d nintrs=%d\n",
-			    __func__, index, ionic->nintrs);
+		dev_warn(ionic->dev, "%s: no intr, index=%d nintrs=%d\n",
+			 __func__, index, ionic->nintrs);
 		return -ENOSPC;
 	}
 
@@ -167,10 +166,10 @@ static int ionic_intr_alloc(struct ionic_lif *lif, struct ionic_intr_info *intr)
 	return 0;
 }
 
-static void ionic_intr_free(struct ionic_lif *lif, int index)
+void ionic_intr_free(struct ionic *ionic, int index)
 {
-	if (index != INTR_INDEX_NOT_ASSIGNED && index < lif->ionic->nintrs)
-		clear_bit(index, lif->ionic->intrs);
+	if (index != INTR_INDEX_NOT_ASSIGNED && index < ionic->nintrs)
+		clear_bit(index, ionic->intrs);
 }
 
 static int ionic_qcq_enable(struct ionic_qcq *qcq)
@@ -294,7 +293,7 @@ static void ionic_qcq_free(struct ionic_lif *lif, struct ionic_qcq *qcq)
 	qcq->base_pa = 0;
 
 	if (qcq->flags & IONIC_QCQ_F_INTR)
-		ionic_intr_free(lif, qcq->intr.index);
+		ionic_intr_free(lif->ionic, qcq->intr.index);
 
 	devm_kfree(dev, qcq->cq.info);
 	qcq->cq.info = NULL;
@@ -337,7 +336,7 @@ static void ionic_link_qcq_interrupts(struct ionic_qcq *src_qcq,
 				      struct ionic_qcq *n_qcq)
 {
 	if (WARN_ON(n_qcq->flags & IONIC_QCQ_F_INTR)) {
-		ionic_intr_free(n_qcq->cq.lif, n_qcq->intr.index);
+		ionic_intr_free(n_qcq->cq.lif->ionic, n_qcq->intr.index);
 		n_qcq->flags &= ~IONIC_QCQ_F_INTR;
 	}
 
@@ -407,7 +406,7 @@ static int ionic_qcq_alloc(struct ionic_lif *lif, unsigned int type,
 	}
 
 	if (flags & IONIC_QCQ_F_INTR) {
-		err = ionic_intr_alloc(lif, &new->intr);
+		err = ionic_intr_alloc(lif->ionic, &new->intr);
 		if (err) {
 			netdev_warn(lif->netdev, "no intr for %s: %d\n",
 				    name, err);
@@ -478,7 +477,7 @@ static int ionic_qcq_alloc(struct ionic_lif *lif, unsigned int type,
 	return 0;
 
 err_out_free_intr:
-	ionic_intr_free(lif, new->intr.index);
+	ionic_intr_free(lif->ionic, new->intr.index);
 err_out:
 	dev_err(dev, "qcq alloc of %s%d failed %d\n", name, index, err);
 	return err;
@@ -1619,6 +1618,30 @@ int ionic_stop(struct net_device *netdev)
 	return err;
 }
 
+int ionic_slave_alloc(struct ionic *ionic, enum ionic_api_prsn prsn)
+{
+	int index;
+
+	/* slave index starts at 1, master_lif is 0 */
+	index = find_first_zero_bit(ionic->lifbits, ionic->nlifs);
+	if (index > ionic->nlifs)
+		return -ENOSPC;
+
+	set_bit(index, ionic->lifbits);
+	if (prsn == IONIC_PRSN_ETH)
+		set_bit(index, ionic->ethbits);
+
+	return index;
+}
+
+void ionic_slave_free(struct ionic *ionic, int index)
+{
+	if (index > ionic->nlifs)
+		return;
+	clear_bit(index, ionic->lifbits);
+	clear_bit(index, ionic->ethbits);
+}
+
 static int ionic_get_vf_config(struct net_device *netdev,
 			       int vf, struct ifla_vf_info *ivf)
 {
@@ -1913,7 +1936,7 @@ static struct ionic_lif *ionic_lif_alloc(struct ionic *ionic, unsigned int index
 	netdev->min_mtu = IONIC_MIN_MTU;
 	netdev->max_mtu = IONIC_MAX_MTU;
 
-	lif->neqs = ionic->neqs_per_lif;
+	lif->nrdma_eqs = ionic->nrdma_eqs_per_lif;
 	lif->nxqs = ionic->ntxqs_per_lif;
 
 	lif->ionic = ionic;
@@ -2239,6 +2262,7 @@ static int ionic_lif_init(struct ionic_lif *lif)
 	lif->hw_index = le16_to_cpu(comp.hw_index);
 
 	/* now that we have the hw_index we can figure out our doorbell page */
+	mutex_init(&lif->dbid_inuse_lock);
 	lif->dbid_count = le32_to_cpu(lif->ionic->ident.dev.ndbpgs_per_lif);
 	if (!lif->dbid_count) {
 		dev_err(dev, "No doorbell pages, aborting\n");
@@ -2344,7 +2368,7 @@ static void ionic_lif_set_netdev_info(struct ionic_lif *lif)
 	ionic_adminq_post_wait(lif, &ctx);
 }
 
-static struct ionic_lif *ionic_netdev_lif(struct net_device *netdev)
+struct ionic_lif *ionic_netdev_lif(struct net_device *netdev)
 {
 	if (!netdev || netdev->netdev_ops->ndo_start_xmit != ionic_start_xmit)
 		return NULL;
@@ -2459,26 +2483,30 @@ int ionic_lif_identify(struct ionic *ionic, u8 lif_type,
 int ionic_lifs_size(struct ionic *ionic)
 {
 	struct ionic_identity *ident = &ionic->ident;
-	unsigned int nintrs, dev_nintrs;
-	union ionic_lif_config *lc;
+	union ionic_lif_config *lc = &ident->lif.eth.config;
+	unsigned int nrdma_eqs_per_lif;
 	unsigned int ntxqs_per_lif;
 	unsigned int nrxqs_per_lif;
-	unsigned int neqs_per_lif;
 	unsigned int nnqs_per_lif;
-	unsigned int nxqs, neqs;
+	unsigned int dev_nintrs;
+	unsigned int nrdma_eqs;
+	unsigned int nintrs;
+	unsigned int nlifs;
+	unsigned int nxqs;
 	unsigned int min_intrs;
 	int err;
 
-	lc = &ident->lif.eth.config;
+	nlifs = le32_to_cpu(ident->dev.nlifs);
 	dev_nintrs = le32_to_cpu(ident->dev.nintrs);
-	neqs_per_lif = le32_to_cpu(ident->lif.rdma.eq_qtype.qid_count);
+
+	nrdma_eqs_per_lif = le32_to_cpu(ident->lif.rdma.eq_qtype.qid_count);
 	nnqs_per_lif = le32_to_cpu(lc->queue_count[IONIC_QTYPE_NOTIFYQ]);
 	ntxqs_per_lif = le32_to_cpu(lc->queue_count[IONIC_QTYPE_TXQ]);
 	nrxqs_per_lif = le32_to_cpu(lc->queue_count[IONIC_QTYPE_RXQ]);
 
 	nxqs = min(ntxqs_per_lif, nrxqs_per_lif);
 	nxqs = min(nxqs, num_online_cpus());
-	neqs = min(neqs_per_lif, num_online_cpus());
+	nrdma_eqs = min(nrdma_eqs_per_lif, num_online_cpus());
 
 try_again:
 	/* interrupt usage:
@@ -2486,7 +2514,7 @@ try_again:
 	 *    1 for each CPU for master lif TxRx queue pairs
 	 *    whatever's left is for RDMA queues
 	 */
-	nintrs = 1 + nxqs + neqs;
+	nintrs = (1 + nxqs) + ((nlifs - 1) * 2) + nrdma_eqs;
 	min_intrs = 2;  /* adminq + 1 TxRx queue pair */
 
 	if (nintrs > dev_nintrs)
@@ -2506,10 +2534,11 @@ try_again:
 	}
 
 	ionic->nnqs_per_lif = nnqs_per_lif;
-	ionic->neqs_per_lif = neqs;
+	ionic->nrdma_eqs_per_lif = nrdma_eqs;
 	ionic->ntxqs_per_lif = nxqs;
 	ionic->nrxqs_per_lif = nxqs;
 	ionic->nintrs = nintrs;
+	ionic->nlifs = nlifs;
 
 	ionic_debugfs_add_sizes(ionic);
 
@@ -2520,8 +2549,12 @@ try_fewer:
 		nnqs_per_lif >>= 1;
 		goto try_again;
 	}
-	if (neqs > 1) {
-		neqs >>= 1;
+	if (nrdma_eqs > 1) {
+		nrdma_eqs >>= 1;
+		goto try_again;
+	}
+	if (nlifs > 1) {
+		nlifs >>= 1;
 		goto try_again;
 	}
 	if (nxqs > 1) {
