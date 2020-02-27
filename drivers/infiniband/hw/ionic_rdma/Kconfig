@@ -1,0 +1,14 @@
+# SPDX-License-Identifier: GPL-2.0 OR Linux-OpenIB
+config INFINIBAND_IONIC_RDMA
+	tristate "Pensando IONIC RDMA/RoCE Driver"
+	depends on NETDEVICES && ETHERNET && PCI && INET && 64BIT
+	select NET_VENDOR_PENSANDO
+	select IONIC
+	---help---
+	  This is an RDMA/RoCE driver for the Pensando family of Ethernet
+	  adapters.
+
+	  To learn more, visit our website at <https://pensando.io>.
+
+	  To compile this driver as a module, choose M here. The module
+	  will be called ionic_rdma.
