@@ -13056,6 +13056,15 @@ S:	Supported
 F:	Documentation/networking/device_drivers/pensando/ionic.rst
 F:	drivers/net/ethernet/pensando/
 
+PENSANDO RDMA DRIVERS
+M:	Allen Hubbe <ahubbe@pensando.io>
+M:	Andrew Boyer <aboyer@pensando.io>
+M:	Pensando Drivers <drivers@pensando.io>
+L:	linux-rdma@vger.kernel.org
+S:	Supported
+F:	Documentation/
+F:	drivers/infiniband/hw/ionic/
+
 PER-CPU MEMORY ALLOCATOR
 M:	Dennis Zhou <dennis@kernel.org>
 M:	Tejun Heo <tj@kernel.org>
