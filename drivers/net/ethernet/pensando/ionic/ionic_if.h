@@ -534,7 +534,7 @@ struct ionic_q_init_cmd {
 #define IONIC_QINIT_F_ENA	0x02	/* Enable the queue */
 #define IONIC_QINIT_F_SG	0x04	/* Enable scatter/gather on the queue */
 #define IONIC_QINIT_F_EQ	0x08	/* Enable event queue */
-#define IONIC_QINIT_F_DEBUG 0x80	/* Enable queue debugging */
+#define IONIC_QINIT_F_DEBUG	0x80	/* Enable queue debugging */
 	u8     cos;
 	u8     ring_size;
 	__le64 ring_base;
@@ -1571,11 +1571,11 @@ struct ionic_lif_getattr_comp {
 };
 
 enum ionic_rx_mode {
-	IONIC_RX_MODE_F_UNICAST    = BIT(0),
-	IONIC_RX_MODE_F_MULTICAST  = BIT(1),
-	IONIC_RX_MODE_F_BROADCAST  = BIT(2),
-	IONIC_RX_MODE_F_PROMISC    = BIT(3),
-	IONIC_RX_MODE_F_ALLMULTI   = BIT(4),
+	IONIC_RX_MODE_F_UNICAST		= BIT(0),
+	IONIC_RX_MODE_F_MULTICAST	= BIT(1),
+	IONIC_RX_MODE_F_BROADCAST	= BIT(2),
+	IONIC_RX_MODE_F_PROMISC		= BIT(3),
+	IONIC_RX_MODE_F_ALLMULTI	= BIT(4),
 };
 
 /**
