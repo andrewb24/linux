@@ -1912,7 +1912,7 @@ static struct ionic_lif *ionic_lif_alloc(struct ionic *ionic, unsigned int index
 	netdev->min_mtu = IONIC_MIN_MTU;
 	netdev->max_mtu = IONIC_MAX_MTU;
 
-	lif->neqs = ionic->neqs_per_lif;
+	lif->nrdma_eqs_avail = ionic->nrdma_eqs_per_lif;
 	lif->nxqs = ionic->ntxqs_per_lif;
 
 	lif->ionic = ionic;
@@ -2240,6 +2240,7 @@ static int ionic_lif_init(struct ionic_lif *lif)
 	lif->hw_index = le16_to_cpu(comp.hw_index);
 
 	/* now that we have the hw_index we can figure out our doorbell page */
+	mutex_init(&lif->dbid_inuse_lock);
 	lif->dbid_count = le32_to_cpu(lif->ionic->ident.dev.ndbpgs_per_lif);
 	if (!lif->dbid_count) {
 		dev_err(dev, "No doorbell pages, aborting\n");
@@ -2345,7 +2346,7 @@ static void ionic_lif_set_netdev_info(struct ionic_lif *lif)
 	ionic_adminq_post_wait(lif, &ctx);
 }
 
-static struct ionic_lif *ionic_netdev_lif(struct net_device *netdev)
+struct ionic_lif *ionic_netdev_lif(struct net_device *netdev)
 {
 	if (!netdev || netdev->netdev_ops->ndo_start_xmit != ionic_start_xmit)
 		return NULL;
@@ -2460,26 +2461,28 @@ int ionic_lif_identify(struct ionic *ionic, u8 lif_type,
 int ionic_lifs_size(struct ionic *ionic)
 {
 	struct ionic_identity *ident = &ionic->ident;
-	unsigned int nintrs, dev_nintrs;
-	union ionic_lif_config *lc;
+	union ionic_lif_config *lc = &ident->lif.eth.config;
+	unsigned int nrdma_eqs_per_lif;
 	unsigned int ntxqs_per_lif;
 	unsigned int nrxqs_per_lif;
-	unsigned int neqs_per_lif;
 	unsigned int nnqs_per_lif;
-	unsigned int nxqs, neqs;
+	unsigned int dev_nintrs;
 	unsigned int min_intrs;
+	unsigned int nrdma_eqs;
+	unsigned int nintrs;
+	unsigned int nxqs;
 	int err;
 
-	lc = &ident->lif.eth.config;
 	dev_nintrs = le32_to_cpu(ident->dev.nintrs);
-	neqs_per_lif = le32_to_cpu(ident->lif.rdma.eq_qtype.qid_count);
+
+	nrdma_eqs_per_lif = le32_to_cpu(ident->lif.rdma.eq_qtype.qid_count);
 	nnqs_per_lif = le32_to_cpu(lc->queue_count[IONIC_QTYPE_NOTIFYQ]);
 	ntxqs_per_lif = le32_to_cpu(lc->queue_count[IONIC_QTYPE_TXQ]);
 	nrxqs_per_lif = le32_to_cpu(lc->queue_count[IONIC_QTYPE_RXQ]);
 
 	nxqs = min(ntxqs_per_lif, nrxqs_per_lif);
 	nxqs = min(nxqs, num_online_cpus());
-	neqs = min(neqs_per_lif, num_online_cpus());
+	nrdma_eqs = min(nrdma_eqs_per_lif, num_online_cpus());
 
 try_again:
 	/* interrupt usage:
@@ -2487,7 +2490,7 @@ try_again:
 	 *    1 for each CPU for master lif TxRx queue pairs
 	 *    whatever's left is for RDMA queues
 	 */
-	nintrs = 1 + nxqs + neqs;
+	nintrs = 1 + nxqs + nrdma_eqs;
 	min_intrs = 2;  /* adminq + 1 TxRx queue pair */
 
 	if (nintrs > dev_nintrs)
@@ -2507,7 +2510,7 @@ try_again:
 	}
 
 	ionic->nnqs_per_lif = nnqs_per_lif;
-	ionic->neqs_per_lif = neqs;
+	ionic->nrdma_eqs_per_lif = nrdma_eqs;
 	ionic->ntxqs_per_lif = nxqs;
 	ionic->nrxqs_per_lif = nxqs;
 	ionic->nintrs = nintrs;
@@ -2521,8 +2524,8 @@ try_fewer:
 		nnqs_per_lif >>= 1;
 		goto try_again;
 	}
-	if (neqs > 1) {
-		neqs >>= 1;
+	if (nrdma_eqs > 1) {
+		nrdma_eqs >>= 1;
 		goto try_again;
 	}
 	if (nxqs > 1) {

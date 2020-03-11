@@ -131,6 +131,14 @@ enum ionic_lif_state_flags {
 	IONIC_LIF_F_STATE_SIZE
 };
 
+struct ionic_lif_cfg {
+	int index;
+	enum ionic_api_prsn prsn;
+
+	void *priv;
+	void (*reset_cb)(void *priv);
+};
+
 #define IONIC_LIF_NAME_MAX_SZ		32
 struct ionic_lif {
 	char name[IONIC_LIF_NAME_MAX_SZ];
@@ -149,7 +157,7 @@ struct ionic_lif {
 	struct ionic_qcqst *txqcqs;
 	struct ionic_qcqst *rxqcqs;
 	u64 last_eid;
-	unsigned int neqs;
+	unsigned int nrdma_eqs_avail;
 	unsigned int nxqs;
 	unsigned int ntxq_descs;
 	unsigned int nrxq_descs;
@@ -173,11 +181,16 @@ struct ionic_lif {
 
 	struct ionic_rx_filters rx_filters;
 	struct ionic_deferred deferred;
-	unsigned long *dbid_inuse;
-	unsigned int dbid_count;
-	struct dentry *dentry;
 	u32 rx_coalesce_usecs;		/* what the user asked for */
 	u32 rx_coalesce_hw;		/* what the hw is using */
+	struct mutex dbid_inuse_lock;	/* lock the dbid bit list */
+	unsigned long *dbid_inuse;
+	unsigned int dbid_count;
+
+	/* TODO: Make this a list if more than one slave is supported */
+	struct ionic_lif_cfg slave_lif_cfg;
+
+	struct dentry *dentry;
 
 	u32 flags;
 	struct work_struct tx_timeout_work;
@@ -243,6 +256,8 @@ void ionic_intr_free(struct ionic *ionic, int index);
 int ionic_open(struct net_device *netdev);
 int ionic_stop(struct net_device *netdev);
 int ionic_reset_queues(struct ionic_lif *lif);
+
+struct ionic_lif *ionic_netdev_lif(struct net_device *netdev);
 
 static inline void debug_stats_txq_post(struct ionic_qcq *qcq,
 					struct ionic_txq_desc *desc, bool dbell)
