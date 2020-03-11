@@ -128,7 +128,7 @@ int ionic_heartbeat_check(struct ionic *ionic)
 	if (hb == idev->last_hb) {
 		/* only complain once for each stall seen */
 		if (idev->last_hb_time != 1) {
-			dev_info(ionic->dev, "FW heartbeat stalled at %d\n",
+			dev_info(ionic->dev, "FW heartbeat stalled at %u\n",
 				 idev->last_hb);
 			idev->last_hb_time = 1;
 		}
