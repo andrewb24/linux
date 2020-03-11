@@ -1633,7 +1633,7 @@ static int ionic_get_vf_config(struct net_device *netdev,
 	} else {
 		ivf->vf           = vf;
 		ivf->vlan         = ionic->vfs[vf].vlanid;
-		ivf->qos	  = 0;
+		ivf->qos          = 0;
 		ivf->spoofchk     = ionic->vfs[vf].spoofchk;
 		ivf->linkstate    = ionic->vfs[vf].linkstate;
 		ivf->max_tx_rate  = ionic->vfs[vf].maxrate;
@@ -1812,14 +1812,14 @@ static int ionic_set_vf_link_state(struct net_device *netdev, int vf, int set)
 	int ret;
 
 	switch (set) {
+	case IFLA_VF_LINK_STATE_AUTO:
+		data = IONIC_VF_LINK_STATUS_AUTO;
+		break;
 	case IFLA_VF_LINK_STATE_ENABLE:
 		data = IONIC_VF_LINK_STATUS_UP;
 		break;
 	case IFLA_VF_LINK_STATE_DISABLE:
 		data = IONIC_VF_LINK_STATUS_DOWN;
-		break;
-	case IFLA_VF_LINK_STATE_AUTO:
-		data = IONIC_VF_LINK_STATUS_AUTO;
 		break;
 	default:
 		return -EINVAL;
