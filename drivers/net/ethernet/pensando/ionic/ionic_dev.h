@@ -8,6 +8,7 @@
 #include <linux/workqueue.h>
 
 #include "ionic_if.h"
+#include "ionic_api.h"
 #include "ionic_regs.h"
 
 #define IONIC_MIN_MTU			ETH_MIN_MTU
@@ -119,13 +120,6 @@ static_assert(sizeof(struct ionic_vf_setattr_comp) == 16);
 static_assert(sizeof(struct ionic_vf_getattr_cmd) == 64);
 static_assert(sizeof(struct ionic_vf_getattr_comp) == 16);
 
-struct ionic_devinfo {
-	u8 asic_type;
-	u8 asic_rev;
-	char fw_version[IONIC_DEVINFO_FWVERS_BUFLEN + 1];
-	char serial_num[IONIC_DEVINFO_SERIAL_BUFLEN + 1];
-};
-
 struct ionic_dev {
 	union ionic_dev_info_regs __iomem *dev_info_regs;
 	union ionic_dev_cmd_regs __iomem *dev_cmd_regs;
@@ -138,6 +132,11 @@ struct ionic_dev {
 
 	struct ionic_intr __iomem *intr_ctrl;
 	u64 __iomem *intr_status;
+
+	struct mutex cmb_inuse_lock; /* for cmb_inuse */
+	unsigned long *cmb_inuse;
+	dma_addr_t phy_cmb_pages;
+	u32 cmb_npages;
 
 	u32 port_info_sz;
 	struct ionic_port_info *port_info;
