@@ -121,7 +121,7 @@ static void ionic_link_status_check_request(struct ionic_lif *lif)
 	}
 }
 
-static irqreturn_t ionic_isr(int irq, void *data)
+static irqreturn_t ionic_napi_isr(int irq, void *data)
 {
 	struct napi_struct *napi = data;
 
@@ -130,7 +130,7 @@ static irqreturn_t ionic_isr(int irq, void *data)
 	return IRQ_HANDLED;
 }
 
-static int ionic_request_irq(struct ionic_lif *lif, struct ionic_qcq *qcq)
+static int ionic_request_napi_irq(struct ionic_lif *lif, struct ionic_qcq *qcq)
 {
 	struct ionic_intr_info *intr = &qcq->intr;
 	struct device *dev = lif->ionic->dev;
@@ -145,7 +145,7 @@ static int ionic_request_irq(struct ionic_lif *lif, struct ionic_qcq *qcq)
 	snprintf(intr->name, sizeof(intr->name),
 		 "%s-%s-%s", IONIC_DRV_NAME, name, q->name);
 
-	return devm_request_irq(dev, intr->vector, ionic_isr,
+	return devm_request_irq(dev, intr->vector, ionic_napi_isr,
 				0, intr->name, &qcq->napi);
 }
 
@@ -655,7 +655,7 @@ static int ionic_lif_rxq_init(struct ionic_lif *lif, struct ionic_qcq *qcq)
 	netif_napi_add(lif->netdev, &qcq->napi, ionic_rx_napi,
 		       NAPI_POLL_WEIGHT);
 
-	err = ionic_request_irq(lif, qcq);
+	err = ionic_request_napi_irq(lif, qcq);
 	if (err) {
 		netif_napi_del(&qcq->napi);
 		return err;
@@ -2107,7 +2107,7 @@ static int ionic_lif_adminq_init(struct ionic_lif *lif)
 	netif_napi_add(lif->netdev, &qcq->napi, ionic_adminq_napi,
 		       NAPI_POLL_WEIGHT);
 
-	err = ionic_request_irq(lif, qcq);
+	err = ionic_request_napi_irq(lif, qcq);
 	if (err) {
 		netdev_warn(lif->netdev, "adminq irq request failed %d\n", err);
 		netif_napi_del(&qcq->napi);
