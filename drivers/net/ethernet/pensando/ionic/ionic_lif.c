@@ -1633,7 +1633,7 @@ static int ionic_get_vf_config(struct net_device *netdev,
 	} else {
 		ivf->vf           = vf;
 		ivf->vlan         = ionic->vfs[vf].vlanid;
-		ivf->qos	  = 0;
+		ivf->qos          = 0;
 		ivf->spoofchk     = ionic->vfs[vf].spoofchk;
 		ivf->linkstate    = ionic->vfs[vf].linkstate;
 		ivf->max_tx_rate  = ionic->vfs[vf].maxrate;
