@@ -1599,7 +1599,7 @@ int ionic_stop(struct net_device *netdev)
 	int err = 0;
 
 	if (!test_bit(IONIC_LIF_F_UP, lif->state)) {
-		dev_dbg(lif->ionic->dev, "%s: %s state=DOWN\n",
+		dev_dbg(lif->ionic->dev, "%s: %s called when state=DOWN\n",
 			__func__, lif->name);
 		return 0;
 	}
@@ -2156,8 +2156,10 @@ static int ionic_lif_notifyq_init(struct ionic_lif *lif)
 	dev_dbg(dev, "notifyq_init.ring_size %d\n", ctx.cmd.q_init.ring_size);
 
 	err = ionic_adminq_post_wait(lif, &ctx);
-	if (err)
+	if (err) {
+		netdev_err(lif->netdev, "notifyq init failed %d\n", err);
 		return err;
+	}
 
 	q->hw_type = ctx.comp.q_init.hw_type;
 	q->hw_index = le32_to_cpu(ctx.comp.q_init.hw_index);

@@ -566,8 +566,8 @@ void ionic_q_post(struct ionic_queue *q, bool ring_doorbell, ionic_desc_cb cb,
 	q->head->cb_arg = cb_arg;
 	q->head = q->head->next;
 
-	dev_dbg(dev, "lif=%d qname=%s qid=%d qtype=%d p_index=%d ringdb=%d\n",
-		q->lif->index, q->name, q->hw_type, q->hw_index,
+	dev_dbg(dev, "%s: lif=%d qname=%s hw_type=%d hw_index=%d p_index=%d ringdb=%d\n",
+		__func__, q->lif->index, q->name, q->hw_type, q->hw_index,
 		q->head->index, ring_doorbell);
 
 	if (ring_doorbell)
