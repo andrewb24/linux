@@ -2,7 +2,7 @@
 
 ccflags-y :=  -I $(srctree)/drivers/net/ethernet/pensando/ionic
 
-obj-$(CONFIG_INFINIBAND_IONIC_RDMA)	+= ionic_rdma.o
+obj-$(CONFIG_INFINIBAND_IONIC)	+= ionic_rdma.o
 
 ionic_rdma-y :=	\
 	ionic_ibdev.o ionic_queue.o ionic_sysfs.o \
