@@ -54,7 +54,7 @@ void ionic_api_request_reset(void *handle)
 	mutex_lock(&ionic->dev_cmd_lock);
 
 	ionic_dev_cmd_go(&ionic->idev, &cmd);
-	err = ionic_dev_cmd_wait(ionic, devcmd_timeout);
+	err = ionic_dev_cmd_wait(ionic, DEVCMD_TIMEOUT);
 
 	mutex_unlock(&ionic->dev_cmd_lock);
 

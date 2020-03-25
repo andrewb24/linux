@@ -1913,6 +1913,7 @@ static struct ionic_lif *ionic_lif_alloc(struct ionic *ionic, unsigned int index
 	netdev->max_mtu = IONIC_MAX_MTU;
 
 	lif->nrdma_eqs_avail = ionic->nrdma_eqs_per_lif;
+	lif->nrdma_eqs = ionic->nrdma_eqs_per_lif;
 	lif->nxqs = ionic->ntxqs_per_lif;
 
 	lif->ionic = ionic;

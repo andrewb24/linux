@@ -157,6 +157,7 @@ struct ionic_lif {
 	struct ionic_qcqst *txqcqs;
 	struct ionic_qcqst *rxqcqs;
 	u64 last_eid;
+	unsigned int nrdma_eqs;
 	unsigned int nrdma_eqs_avail;
 	unsigned int nxqs;
 	unsigned int ntxq_descs;
